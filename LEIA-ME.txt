@@ -1,0 +1,23 @@
+ROTA EXPRESS - pacote inicial PWA
+
+ARQUIVOS
+- index.html: aplicativo web (protótipo funcional)
+- manifest.json: configuração instalável
+- sw.js: cache básico do aplicativo
+- icon.svg: ícone
+
+PUBLICAÇÃO
+1. Descompacte este ZIP.
+2. Crie um repositório no GitHub e envie os quatro arquivos para a raiz.
+3. Na Vercel, importe o repositório e publique como projeto estático. Não é necessário comando de build nem diretório de saída especial.
+4. Abra o endereço HTTPS publicado no iPhone/Android. No iPhone: Compartilhar > Adicionar à Tela de Início. No Android: menu do navegador > Instalar aplicativo.
+
+LIMITAÇÕES IMPORTANTES DA VERSÃO INICIAL
+- O OCR usa Tesseract.js e bibliotecas externas; a primeira leitura exige internet e pode demorar. Sempre confira o endereço reconhecido.
+- A localização de endereços usa Nominatim/OSM público, sujeito a política de uso e limites. Não é adequado para grande volume em produção.
+- A ordenação atual usa distância geográfica em linha reta (vizinho mais próximo), não distância real por ruas.
+- A abertura do Google Maps recebe origem, destino e paradas, mas o Google pode impor limites de waypoints.
+- Os pacotes ficam apenas na memória da página nesta versão; não há login, sincronização, cobrança ou banco de dados.
+- Não use dados reais de destinatários sem avaliar LGPD, segurança e política dos fornecedores.
+
+Esta é uma versão inicial para teste, não um serviço pronto para operação comercial em escala.

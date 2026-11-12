@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>ROTA EXPRESS</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ROTA EXPRESS">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#0b1220;--panel:#121d30;--panel2:#1a2940;--text:#f5f7fb;--muted:#a8b4c7;--accent:#ffb21c;--green:#36c98f;--line:#293951}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:22px 18px 16px;background:linear-gradient(135deg,#111e33,#182c49);border-bottom:1px solid var(--line)}
+.brand{font-weight:900;font-size:23px;letter-spacing:1px}.brand span{color:var(--accent)}header p{margin:6px 0 0;color:var(--muted);font-size:13px}
+main{max-width:850px;margin:auto;padding:16px;display:grid;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+h2{font-size:17px;margin:0 0 12px}p.help{color:var(--muted);font-size:13px;line-height:1.45;margin:7px 0}
+button,.btn{border:0;border-radius:12px;padding:13px 15px;font-weight:750;font-size:15px;background:var(--accent);color:#1b2432;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+button.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;gap:9px;flex-wrap:wrap}
+input,textarea{width:100%;background:#0d1728;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit}
+textarea{min-height:85px;resize:vertical}
+label{display:block;color:var(--muted);font-size:13px;margin:10px 0 6px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:var(--panel2);border-radius:12px;padding:12px}.stat b{display:block;font-size:22px}.stat small{color:var(--muted)}
+.package{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:7px}.package:first-child{border-top:0}.pkghead{display:flex;justify-content:space-between;gap:10px;align-items:center}.tag{font-size:11px;color:#152033;background:var(--green);border-radius:20px;padding:4px 8px;font-weight:800}.tag.warn{background:var(--accent)}
+#map{height:340px;border-radius:12px;overflow:hidden;background:#1a2940}
+.status{color:var(--muted);font-size:13px;min-height:20px;margin-top:8px}
+footer{padding:8px 18px 28px;text-align:center;color:var(--muted);font-size:11px}
+a{color:var(--accent)}.hidden{display:none!important}
+@media(min-width:700px){main{grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header><div class="brand">ROTA <span>EXPRESS</span></div><p>Fotografe as etiquetas. Confira os endereços. Gere sua rota.</p></header>
+<main>
+<section class="card">
+<h2>1. Ponto de partida</h2>
+<label for="startAddress">Endereço de saída (opcional)</label>
+<input id="startAddress" placeholder="Ex.: Rua das Flores, 100, Curitiba - PR">
+<div class="actions" style="margin-top:10px"><button class="secondary" id="gpsBtn">Usar minha localização GPS</button></div>
+<p class="help">Se não informar um endereço, o aplicativo tentará usar a localização do celular.</p>
+<div class="status" id="gpsStatus"></div>
+</section>
+<section class="card">
+<h2>2. Fotografar etiquetas em sequência</h2>
+<input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden">
+<div class="actions">
+<button id="photoBtn">📷 Fotografar etiqueta</button>
+<button class="secondary" id="textBtn">Adicionar endereço digitado</button>
+</div>
+<p class="help">Fotografe uma etiqueta por vez. O leitor tentará reconhecer o texto. Confira e corrija o endereço antes de adicionar à rota.</p>
+<div class="status" id="ocrStatus"></div>
+<div id="manualBox" class="hidden">
+<label for="manualAddress">Endereço completo do pacote</label>
+<textarea id="manualAddress" placeholder="Rua, número, bairro, cidade, estado e CEP"></textarea>
+<button id="addManual" style="margin-top:8px">Adicionar endereço</button>
+</div>
+</section>
+<section class="card wide">
+<h2>3. Pacotes identificados</h2>
+<div class="stats">
+<div class="stat"><b id="count">0</b><small>Pacotes</small></div>
+<div class="stat"><b id="stops">0</b><small>Endereços únicos</small></div>
+<div class="stat"><b id="done">0</b><small>Entregues</small></div>
+</div>
+<div id="packages"><p class="help">Nenhum pacote adicionado ainda.</p></div>
+<div class="actions">
+<button class="secondary" id="clearBtn">Limpar lista</button>
+<button id="routeBtn" disabled>🧭 Otimizar rota</button>
+</div>
+<div class="status" id="routeStatus"></div>
+</section>
+<section class="card wide">
+<h2>4. Rota otimizada — menor distância estimada</h2>
+<div id="map"></div>
+<div id="routeList"><p class="help">A rota aparecerá aqui depois da otimização.</p></div>
+<div class="actions">
+<button id="navigateBtn" disabled>Iniciar navegação no Google Maps</button>
+</div>
+<p class="help">A sequência é calculada por proximidade geográfica (estimativa em linha reta). A navegação externa usa as vias disponíveis no Google Maps. Para uma otimização rodoviária profissional, será necessário integrar um serviço de matriz de distâncias com limites e disponibilidade adequados.</p>
+</section>
+</main>
+<footer>ROTA EXPRESS • Protótipo inicial • Confirme sempre os endereços antes de sair para entrega.</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let packages=[], startPoint=null, orderedStops=[], map=null, markers=[], routeLine=null;
+function setStatus(id,msg){$(id).textContent=msg}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function initMap(){map=L.map('map').setView([-15.78,-47.93],4);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map)}
+initMap();
+function render(){
+ $('count').textContent=packages.length;
+ $('stops').textContent=new Set(packages.map(p=>p.address.trim().toLowerCase())).size;
+ $('done').textContent=packages.filter(p=>p.done).length;
+ $('routeBtn').disabled=packages.length===0;
+ $('packages').innerHTML=packages.length?packages.map((p,i)=>`<div class="package"><div class="pkghead"><b>Pacote ${String(i+1).padStart(3,'0')}</b><span class="tag ${p.done?'':'warn'}">${p.done?'ENTREGUE':'PENDENTE'}</span></div><textarea data-edit="${i}" aria-label="Endereço do pacote">${esc(p.address)}</textarea><div class="actions"><button class="secondary" data-save="${i}">Salvar endereço</button><button class="secondary" data-done="${i}">${p.done?'Reabrir':'Marcar entregue'}</button><button class="secondary" data-del="${i}">Excluir</button></div></div>`).join(''):'<p class="help">Nenhum pacote adicionado ainda.</p>';
+ document.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>{let i=+b.dataset.save;packages[i].address=document.querySelector(`[data-edit="${i}"]`).value.trim();render()});
+ document.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>{let i=+b.dataset.done;packages[i].done=!packages[i].done;render()});
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{packages.splice(+b.dataset.del,1);render()});
+}
+$('photoBtn').onclick=()=>$('cameraInput').click();
+$('cameraInput').onchange=async e=>{
+ const file=e.target.files[0];if(!file)return;
+ setStatus('ocrStatus','Lendo a etiqueta... aguarde.');
+ try{
+  const result=await Tesseract.recognize(file,'por+eng',{logger:m=>{if(m.status==='recognizing text')setStatus('ocrStatus','Reconhecendo texto: '+Math.round((m.progress||0)*100)+'%')}});
+  const text=result.data.text.trim();
+  $('manualBox').classList.remove('hidden');
+  $('manualAddress').value=text;
+  setStatus('ocrStatus','Texto reconhecido. Confira, deixe somente o endereço completo e adicione.');
+ }catch(err){setStatus('ocrStatus','Não foi possível ler a foto. Digite o endereço manualmente.');$('manualBox').classList.remove('hidden')}
+ e.target.value='';
+};
+$('textBtn').onclick=()=>$('manualBox').classList.toggle('hidden');
+$('addManual').onclick=()=>{const address=$('manualAddress').value.trim();if(!address){alert('Digite ou reconheça um endereço.');return}packages.push({address,done:false});$('manualAddress').value='';$('manualBox').classList.add('hidden');setStatus('ocrStatus','Pacote adicionado. Fotografe a próxima etiqueta.');render()};
+$('clearBtn').onclick=()=>{if(confirm('Apagar todos os pacotes desta rota?')){packages=[];orderedStops=[];render();clearMap();$('routeList').innerHTML='<p class="help">A rota aparecerá aqui depois da otimização.</p>'}};
+function clearMap(){markers.forEach(m=>map.removeLayer(m));markers=[];if(routeLine){map.removeLayer(routeLine);routeLine=null}}
+function hav(a,b){const R=6371,to=x=>x*Math.PI/180,d1=to(b.lat-a.lat),d2=to(b.lon-a.lon),x=Math.sin(d1/2)**2+Math.cos(to(a.lat))*Math.cos(to(b.lat))*Math.sin(d2/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+async function geocode(q){
+ const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(q));
+ if(!r.ok)throw Error('Falha no serviço de endereços');
+ const a=await r.json();if(!a.length)throw Error('Endereço não localizado: '+q);
+ return {lat:+a[0].lat,lon:+a[0].lon,label:a[0].display_name};
+}
+function nearestOrder(points,start){
+ let remaining=points.slice(),out=[],cur=start;
+ while(remaining.length){let best=0,dist=Infinity;remaining.forEach((p,i)=>{const d=hav(cur,p);if(d<dist){dist=d;best=i}});cur=remaining.splice(best,1)[0];out.push(cur)}
+ return out;
+}
+$('gpsBtn').onclick=()=>{if(!navigator.geolocation){setStatus('gpsStatus','GPS não disponível neste navegador.');return}setStatus('gpsStatus','Obtendo localização...');navigator.geolocation.getCurrentPosition(pos=>{startPoint={lat:pos.coords.latitude,lon:pos.coords.longitude,label:'Minha localização'};setStatus('gpsStatus','Ponto de partida definido pela localização atual.')},()=>setStatus('gpsStatus','Não foi possível acessar o GPS. Digite o endereço de partida.'),{enableHighAccuracy:true,timeout:12000})};
+$('routeBtn').onclick=async()=>{
+ if(!packages.length)return;
+ setStatus('routeStatus','Localizando endereços. Isso pode levar alguns segundos...');
+ $('routeBtn').disabled=true;
+ try{
+  let start=startPoint;
+  const startText=$('startAddress').value.trim();
+  if(startText)start=await geocode(startText);
+  if(!start){if(!navigator.geolocation)throw Error('Informe um endereço de partida ou permita o GPS.');start=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lon:p.coords.longitude,label:'Minha localização'}),()=>rej(Error('Informe o endereço de partida ou permita o GPS.'))))}
+  // Group identical address strings to avoid duplicate stops.
+  const groups=new Map();
+  packages.forEach((p,i)=>{const k=p.address.trim().toLowerCase();if(!groups.has(k))groups.set(k,{address:p.address,items:[]});groups.get(k).items.push(i+1)});
+  const geocoded=[];
+  for(const g of groups.values()){setStatus('routeStatus','Localizando: '+g.address);const loc=await geocode(g.address);geocoded.push({...loc,address:g.address,items:g.items});await new Promise(r=>setTimeout(r,1100))}
+  orderedStops=nearestOrder(geocoded,start);
+  clearMap();
+  const pts=[start,...orderedStops];
+  pts.forEach((p,i)=>{const m=L.marker([p.lat,p.lon]).addTo(map).bindPopup(i===0?'Partida':`Parada ${i}: ${esc(p.address)}<br>Pacotes: ${p.items.join(', ')}`);markers.push(m)});
+  routeLine=L.polyline(pts.map(p=>[p.lat,p.lon]),{color:'#f5a900',weight:4,dashArray:'7 7'}).addTo(map);
+  map.fitBounds(routeLine.getBounds().pad(.15));
+  $('routeList').innerHTML='<ol>'+orderedStops.map((p,i)=>`<li style="margin:8px 0"><b>Parada ${i+1}:</b> ${esc(p.address)} <small style="color:#a8b4c7">— pacotes ${p.items.join(', ')}</small></li>`).join('')+'</ol>';
+  $('navigateBtn').disabled=false;
+  setStatus('routeStatus',orderedStops.length+' paradas organizadas. Distância otimizada por proximidade em linha reta.');
+ }catch(err){setStatus('routeStatus','Atenção: '+err.message)}
+ finally{$('routeBtn').disabled=false}
+};
+$('navigateBtn').onclick=()=>{
+ if(!orderedStops.length)return;
+ const origin=startPoint?`${startPoint.lat},${startPoint.lon}`:($('startAddress').value.trim()||'My Location');
+ const dest=orderedStops[orderedStops.length-1],way=orderedStops.slice(0,-1).map(p=>`${p.lat},${p.lon}`).join('|');
+ const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(origin)+'&destination='+encodeURIComponent(`${dest.lat},${dest.lon}`)+'&waypoints='+encodeURIComponent(way)+'&travelmode=driving';
+ window.open(url,'_blank');
+};
+render();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(err => console.warn('Service worker indisponível:', err)));
+}
+</script>
+</body>
+</html>
