@@ -58,7 +58,8 @@ footer{padding:8px 18px 28px;text-align:center;color:var(--muted);font-size:11px
 <section class="card">
 <h2>2. Fotografar etiquetas</h2>
 <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden">
-<div class="actions"><button id="photoBtn">&#x1f4f7; Fotografar etiqueta</button><button class="secondary" id="textBtn">Digitar endere&#xe7;o</button></div>
+<input id="galleryInput" type="file" accept="image/*" class="hidden">
+<div class="actions"><button id="photoBtn">&#x1f4f7; Fotografar etiqueta</button><button class="secondary" id="galleryBtn">&#x1f5bc; Buscar na galeria</button><button class="secondary" id="textBtn">Digitar endere&#xe7;o</button></div>
 <p class="help">O reconhecimento &#xe9; autom&#xe1;tico, mas pode errar. Sempre confira e corrija o endere&#xe7;o antes de salvar.</p>
 <div class="status" id="ocrStatus"></div>
 <div id="manualBox" class="hidden">
@@ -138,10 +139,13 @@ async function reverseGeocode(lat,lon){const r=await fetch('https://nominatim.op
 function preprocess(file){return new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{const scale=Math.min(2.5,2200/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,canvas.width,canvas.height);const im=ctx.getImageData(0,0,canvas.width,canvas.height),d=im.data;for(let i=0;i<d.length;i+=4){const v=Math.max(0,Math.min(255,((d[i]*.299+d[i+1]*.587+d[i+2]*.114)-118)*1.35+128));d[i]=d[i+1]=d[i+2]=v}ctx.putImageData(im,0,0);URL.revokeObjectURL(url);resolve(canvas)};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('N\u00e3o foi poss\u00edvel abrir a foto'))};img.src=url})}
 function extractAddress(text){const lines=text.split(/\r?\n/).map(x=>x.replace(/[|_~=]+/g,' ').replace(/\s+/g,' ').trim()).filter(x=>x.length>2),street=/\b(rua|r\.|avenida|av\.?|travessa|tv\.?|alameda|estrada|rodovia|servid\u00e3o|pra\u00e7a|largo)\b/i;let found=[];for(let i=0;i<lines.length;i++)if(street.test(lines[i])){found=[lines[i]];if(lines[i+1]&&!street.test(lines[i+1]))found.push(lines[i+1]);if(lines[i+2]&&(/\b\d{5}[-.]?\d{3}\b/.test(lines[i+2])||/\b[A-Z]{2}\b/.test(lines[i+2])))found.push(lines[i+2]);break}const address=found.join(', ').trim();return {address,valid:street.test(address)&&/\b\d{1,5}[A-Za-z]?\b/.test(address)}}
 $('photoBtn').onclick=()=>$('cameraInput').click();
-$('cameraInput').onchange=async e=>{const file=e.target.files[0];if(!file)return;setStatus('ocrStatus','Preparando imagem...');
+$('galleryBtn').onclick=()=>$('galleryInput').click();
+async function processLabelImage(file,input){if(!file)return;setStatus('ocrStatus','Preparando imagem...');
 try{const image=await preprocess(file);let best=null;for(const lang of ['por','eng']){try{setStatus('ocrStatus','Lendo etiqueta ('+lang+')...');const result=await Tesseract.recognize(image,lang,{logger:m=>{if(m.status==='recognizing text')setStatus('ocrStatus','Reconhecendo: '+Math.round((m.progress||0)*100)+'%')}});if(!best||(result.data.confidence||0)>best.confidence)best={text:result.data.text||'',confidence:result.data.confidence||0}}catch(_){}}
-const found=extractAddress(best?.text||'');$('manualBox').classList.remove('hidden');$('manualAddress').value=found.address||'';setStatus('ocrStatus',found.valid?'Endere\u00e7o sugerido. Confira e confirme abaixo.':'N\u00e3o foi poss\u00edvel reconhecer com seguran\u00e7a. Digite ou corrija o endere\u00e7o abaixo.');}
-catch(e){$('manualBox').classList.remove('hidden');setStatus('ocrStatus','Falha na leitura. Digite o endere\u00e7o manualmente.')}e.target.value=''};
+const found=extractAddress(best?.text||'');$('manualBox').classList.remove('hidden');$('manualAddress').value=found.address||'';setStatus('ocrStatus',found.valid?'EndereÃ§o sugerido. Confira e confirme abaixo.':'NÃ£o foi possÃ­vel reconhecer com seguranÃ§a. Digite ou corrija o endereÃ§o abaixo.');}
+catch(e){$('manualBox').classList.remove('hidden');setStatus('ocrStatus','Falha na leitura. Digite o endereÃ§o manualmente.')}if(input)input.value=''};
+$('cameraInput').onchange=e=>processLabelImage(e.target.files[0],e.target);
+$('galleryInput').onchange=e=>processLabelImage(e.target.files[0],e.target);
 $('textBtn').onclick=()=>$('manualBox').classList.toggle('hidden');
 $('cepInput').addEventListener('input',e=>{let v=e.target.value.replace(/\D/g,'').slice(0,8);e.target.value=v.length>5?v.slice(0,5)+'-'+v.slice(5):v});
 $('cepLookup').onclick=async()=>{
