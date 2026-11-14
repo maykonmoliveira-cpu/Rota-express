@@ -457,5 +457,13 @@ $('supportCloseConversation').onclick=()=>{supportSelectedTicket=null;supportSho
 init().catch(e=>say('authStatus','Erro ao iniciar: '+e.message));
 render();
 </script>
+  <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .catch(err => console.error('Erro no Service Worker:', err));
+  });
+}
+</script>
 </body>
 </html>
