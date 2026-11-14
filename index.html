@@ -92,7 +92,6 @@ footer{padding:8px 18px 28px;text-align:center;color:var(--muted);font-size:11px
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL='https://psbeqshiuohaynzeywtu.supabase.co';
 const SUPABASE_KEY='sb_publishable__g_JmFa-VfIxtpPUrc_0lQ_ZINzU50o';
@@ -203,6 +202,7 @@ $('routeBtn').onclick=async()=>{
   let start=startPoint;
   if($('startAddress').value.trim())start=await geocode($('startAddress').value.trim());
   if(!start)throw Error('Informe o endere\u00e7o de partida ou use o GPS.');
+  startPoint=start;
   const groups=new Map();
   packages.forEach((p,i)=>{
    const key=cleanAddress(p.address).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -211,7 +211,7 @@ $('routeBtn').onclick=async()=>{
   });
   const points=[],unresolved=[];let n=0;
   for(const g of groups.values()){
-   n++;setStatus('routeStatus','Localizando parada '+n+' de '+groups.size()+': '+g.address);
+   n++;setStatus('routeStatus','Localizando parada '+n+' de '+groups.size+': '+g.address);
    try{
     const point=await geocode(g.address);
     points.push({...point,address:g.address,items:g.items});
@@ -232,7 +232,7 @@ $('routeBtn').onclick=async()=>{
  finally{$('routeBtn').disabled=!packages.length||!user}
 };
 $('saveRouteBtn').onclick=async()=>{if(!user||!orderedStops.length)return;try{const {data:route,error:rerr}=await client.from('rotas').insert({user_id:user.id,nome:'Rota '+new Date().toLocaleString('pt-BR')}).select().single();if(rerr)throw rerr;const rows=[];for(let i=0;i<orderedStops.length;i++){for(const packageNumber of orderedStops[i].items){const p=packages[packageNumber-1];if(p?.id)rows.push({rota_id:route.id,entrega_id:p.id,ordem:i+1})}}if(rows.length){const {error}=await client.from('paradas_rota').insert(rows);if(error)throw error}setStatus('routeStatus','Rota salva na nuvem com '+orderedStops.length+' parada(s).')}catch(e){setStatus('routeStatus','N\u00e3o foi poss\u00edvel salvar a rota: '+e.message)}};
-$('navigateBtn').onclick=()=>{if(!orderedStops.length)return;const start=startPoint?startPoint.lat+','+startPoint.lon:($('startAddress').value.trim()||'My Location');const last=orderedStops.at(-1),way=orderedStops.slice(0,-1).map(p=>p.lat+','+p.lon).join('|');const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(start)+'&destination='+encodeURIComponent(last.lat+','+last.lon)+(way?'&waypoints='+encodeURIComponent(way):'')+'&travelmode=driving';window.open(url,'_blank')};
+$('navigateBtn').onclick=()=>{if(!orderedStops.length)return;const start=startPoint?startPoint.lat+','+startPoint.lon:($('startAddress').value.trim()||'My Location');const last=orderedStops[orderedStops.length-1],way=orderedStops.slice(0,-1).map(p=>p.lat+','+p.lon).join('|');const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(start)+'&destination='+encodeURIComponent(last.lat+','+last.lon)+(way?'&waypoints='+encodeURIComponent(way):'')+'&travelmode=driving';window.location.href=url};
 render();refreshSession().catch(e=>setStatus('authStatus','Erro ao conectar ao Supabase: '+e.message));
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(reg=>reg.unregister())).catch(()=>{}));
 </script>
