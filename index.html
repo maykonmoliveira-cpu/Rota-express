@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>ROTA EXPRESS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#0b1220;--panel:#121d30;--panel2:#1a2940;--text:#f5f7fb;--muted:#a8b4c7;--accent:#ffb21c;--green:#36c98f;--line:#293951}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px system-ui,-apple-system,sans-serif}
+header{padding:22px 18px 16px;background:linear-gradient(135deg,#111e33,#182c49);border-bottom:1px solid var(--line)}
+.brand{font-weight:900;font-size:23px;letter-spacing:1px}.brand span{color:var(--accent)}header p{margin:6px 0 0;color:var(--muted);font-size:13px}
+main{max-width:900px;margin:auto;padding:16px;display:grid;gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+h2{font-size:17px;margin:0 0 12px}p.help{color:var(--muted);font-size:13px;line-height:1.45;margin:7px 0}
+button{border:0;border-radius:12px;padding:13px 15px;font-weight:750;font-size:15px;background:var(--accent);color:#1b2432;cursor:pointer}
+button.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;gap:9px;flex-wrap:wrap;align-items:stretch;margin-top:10px}.actions button{flex:1 1 auto}
+input,textarea{width:100%;background:#0d1728;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit}
+textarea{min-height:75px;resize:vertical}label{display:block;color:var(--muted);font-size:13px;margin:10px 0 6px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:var(--panel2);border-radius:12px;padding:12px}.stat b{display:block;font-size:22px}.stat small{color:var(--muted)}
+.package{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:7px}.pkghead{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.tag{font-size:11px;color:#152033;background:var(--green);border-radius:20px;padding:4px 8px;font-weight:800}.tag.warn{background:var(--accent)}
+#map{height:340px;border-radius:12px;overflow:hidden;background:#1a2940}.status{color:var(--muted);font-size:13px;min-height:20px;margin-top:8px}
+footer{padding:8px 18px 28px;text-align:center;color:var(--muted);font-size:11px}.hidden{display:none!important}
+.wide{grid-column:1/-1}@media(min-width:700px){main{grid-template-columns:1fr 1fr}}@media(max-width:480px){.card{padding:14px}#map{height:300px}}
+</style>
+</head>
+<body>
+<header><div class="brand">ROTA <span>EXPRESS</span></div><p>Fotografe as etiquetas, confira os endereços e organize suas entregas.</p></header>
+<main>
+<section class="card wide" id="authCard">
+<h2>Entrar ou criar conta</h2><p class="help">Entre para salvar suas entregas na nuvem.</p>
+<label for="email">E-mail</label><input id="email" type="email" autocomplete="email" placeholder="seuemail@exemplo.com">
+<label for="password">Senha</label><input id="password" type="password" autocomplete="current-password" placeholder="Mínimo de 6 caracteres">
+<div class="actions"><button id="signupBtn">Criar conta</button><button class="secondary" id="loginBtn">Entrar</button></div><div class="status" id="authStatus"></div>
+</section>
+<section class="card wide hidden" id="accountCard"><div class="pkghead"><div><b>Conta conectada</b><div class="help" id="userEmail"></div></div><button class="secondary" id="logoutBtn">Sair</button></div><div class="status" id="cloudStatus"></div></section>
+<section class="card"><h2>1. Ponto de partida</h2><label for="startAddress">Endereço de saída</label><input id="startAddress" placeholder="Rua, número, bairro, cidade e estado">
+<div class="actions"><button class="secondary" id="gpsBtn">Usar minha localização GPS</button></div><p class="help">Permita a localização no navegador. O GPS exige HTTPS.</p><div class="status" id="gpsStatus"></div></section>
+<section class="card"><h2>2. Fotografar etiquetas</h2>
+<input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden"><input id="galleryInput" type="file" accept="image/*" class="hidden">
+<div class="actions"><button id="photoBtn">📷 Fotografar etiqueta</button><button class="secondary" id="galleryBtn">🖼 Buscar na galeria</button><button class="secondary" id="textBtn">Digitar endereço</button></div>
+<p class="help">O reconhecimento pode errar. Confira o endereço antes de salvar.</p><div class="status" id="ocrStatus"></div>
+<div id="manualBox" class="hidden"><label for="manualAddress">Endereço completo do pacote</label><textarea id="manualAddress" placeholder="Rua, número, bairro, cidade, estado e CEP"></textarea>
+<label for="cepInput">Se a leitura falhar, informe o CEP</label><div class="actions"><input id="cepInput" inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000"><button class="secondary" id="cepLookup">Buscar CEP</button></div>
+<div class="status" id="cepStatus"></div><p class="help">O CEP não informa o número da residência. Complete o número e o complemento antes de salvar.</p><button id="addManual">Confirmar e adicionar</button></div>
+</section>
+<section class="card wide"><h2>3. Pacotes cadastrados</h2><div class="stats"><div class="stat"><b id="count">0</b><small>Pacotes</small></div><div class="stat"><b id="stops">0</b><small>Endereços únicos</small></div><div class="stat"><b id="done">0</b><small>Entregues</small></div></div>
+<div id="packages"><p class="help">Entre na sua conta para carregar os pacotes.</p></div><div class="actions"><button class="secondary" id="reloadBtn">Atualizar lista</button><button class="secondary" id="clearBtn">Limpar lista</button><button id="routeBtn" disabled>🧭 Organizar rota</button></div><div class="status" id="dataStatus"></div></section>
+<section class="card wide"><h2>4. Rota organizada — estimativa por tempo de direção</h2><div id="map"></div><div id="routeList"><p class="help">A rota aparecerá aqui depois da organização.</p></div>
+<div class="actions"><button id="navigateBtn" class="secondary" disabled>Abrir Google Maps</button><button id="nextLegBtn" class="secondary hidden">Próxima etapa</button></div><div class="status" id="routeStatus"></div><p class="help">A ordem é uma estimativa. Confira os endereços e a rota no Google Maps antes de sair. Endereços incompletos podem gerar posições aproximadas.</p></section>
+</main><footer>ROTA EXPRESS • Confira sempre os endereços antes das entregas.</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+'use strict';
+const SUPABASE_URL='https://psbeqshiuohaynzeywtu.supabase.co';
+const SUPABASE_KEY='sb_publishable__g_JmFa-VfIxtpPUrc_0lQ_ZINzU50o';
+const $=id=>document.getElementById(id);
+const say=(id,msg)=>{$(id).textContent=String(msg??'');};
+let client=null,user=null,packages=[],startPoint=null,gpsAddressValue='',orderedStops=[],map=null,markers=[],routeLine=null;
+let authListenerReady=false;
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function setAccount(){
+ $('authCard').classList.toggle('hidden',!!user);
+ $('accountCard').classList.toggle('hidden',!user);
+ $('userEmail').textContent=user?.email||'';
+}
+function clearMap(){
+ if(!map)return;
+ markers.forEach(m=>map.removeLayer(m));markers=[];
+ if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+}
+function render(){
+ $('count').textContent=packages.length;
+ $('stops').textContent=new Set(packages.map(p=>norm(p.address))).size;
+ $('done').textContent=packages.filter(p=>p.done).length;
+ $('routeBtn').disabled=!packages.length||!user;
+ $('packages').innerHTML=packages.length?packages.map((p,i)=>`<div class="package"><div class="pkghead"><b>Pacote ${i+1}</b><span class="tag ${p.done?'':'warn'}">${p.done?'ENTREGUE':'PENDENTE'}</span></div><textarea data-edit="${i}">${escapeHTML(p.address)}</textarea><div class="actions"><button class="secondary" data-save="${i}">Salvar endereço</button><button class="secondary" data-done="${i}">${p.done?'Reabrir':'Marcar entregue'}</button><button class="secondary" data-del="${i}">Excluir</button></div></div>`).join(''):'<p class="help">Nenhum pacote cadastrado.</p>';
+ document.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{
+  const i=Number(b.dataset.save),v=document.querySelector(`[data-edit="${i}"]`).value.trim();
+  if(!v)return say('dataStatus','Informe um endereço.');
+  try{const {error}=await client.from('entregas').update({endereco:v}).eq('id',packages[i].id).eq('user_id',user.id);if(error)throw error;packages[i].address=v;orderedStops=[];render();say('dataStatus','Endereço atualizado. Reorganize a rota.');}
+  catch(e){say('dataStatus','Erro ao atualizar: '+e.message);}
+ });
+ document.querySelectorAll('[data-done]').forEach(b=>b.onclick=async()=>{
+  const p=packages[Number(b.dataset.done)];
+  try{const {error}=await client.from('entregas').update({status:p.done?'pendente':'entregue'}).eq('id',p.id).eq('user_id',user.id);if(error)throw error;p.done=!p.done;render();}
+  catch(e){say('dataStatus','Erro: '+e.message);}
+ });
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+  const p=packages[Number(b.dataset.del)];if(!confirm('Excluir este pacote?'))return;
+  try{const {error}=await client.from('entregas').delete().eq('id',p.id).eq('user_id',user.id);if(error)throw error;packages=packages.filter(x=>x.id!==p.id);orderedStops=[];render();say('dataStatus','Pacote excluído.');}
+  catch(e){say('dataStatus','Erro: '+e.message);}
+ });
+}
+async function loadPackages(){
+ if(!user)return;
+ say('cloudStatus','Carregando entregas...');
+ const {data,error}=await client.from('entregas').select('*').eq('user_id',user.id).order('created_at',{ascending:true});
+ if(error)throw error;
+ packages=(data||[]).map(r=>({id:r.id,address:r.endereco||'',done:r.status==='entregue'}));
+ render();say('cloudStatus','Conectado. '+packages.length+' pacote(s).');
+}
+async function savePackage(address){
+ if(!user)throw Error('Entre na sua conta antes de salvar.');
+ const {data,error}=await client.from('entregas').insert({user_id:user.id,endereco:address,status:'pendente'}).select().single();
+ if(error)throw error;
+ packages.push({id:data.id,address:data.endereco,done:false});render();
+}
+async function init(){
+ if(!window.supabase?.createClient){say('authStatus','Não foi possível carregar o serviço de login. Verifique a internet.');return;}
+ client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+ if(!window.L){say('routeStatus','O mapa não carregou. Verifique sua conexão.');}
+ else{map=L.map('map').setView([-26.3045,-48.8487],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);}
+ const {data,error}=await client.auth.getSession();if(error)throw error;
+ user=data.session?.user||null;setAccount();
+ if(user)await loadPackages();
+ if(!authListenerReady){
+  authListenerReady=true;
+  client.auth.onAuthStateChange((_event,session)=>{
+   const nextUser=session?.user||null;
+   if(nextUser?.id===user?.id)return;
+   user=nextUser;setAccount();
+   if(user)loadPackages().catch(e=>say('dataStatus',e.message));
+   else{packages=[];orderedStops=[];render();say('cloudStatus','');}
+  });
+ }
+}
+$('signupBtn').onclick=async()=>{
+ const email=$('email').value.trim(),password=$('password').value;
+ if(!email||password.length<6)return say('authStatus','Informe e-mail válido e senha com pelo menos 6 caracteres.');
+ try{say('authStatus','Criando conta...');const {data,error}=await client.auth.signUp({email,password});if(error)throw error;
+ if(data.session){user=data.user;setAccount();await loadPackages();say('authStatus','Conta criada e conectada.');}
+ else say('authStatus','Conta criada. Confirme seu e-mail e depois entre.');
+ }catch(e){say('authStatus','Erro ao criar conta: '+e.message);}
+};
+$('loginBtn').onclick=async()=>{
+ try{say('authStatus','Entrando...');const {data,error}=await client.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;user=data.user;setAccount();await loadPackages();say('authStatus','Login realizado.');}
+ catch(e){say('authStatus','Falha no login: '+e.message);}
+};
+$('logoutBtn').onclick=async()=>{try{const {error}=await client.auth.signOut();if(error)throw error;user=null;packages=[];orderedStops=[];setAccount();render();}catch(e){say('cloudStatus','Erro ao sair: '+e.message);}};
+$('reloadBtn').onclick=()=>loadPackages().catch(e=>say('dataStatus',e.message));
+$('clearBtn').onclick=async()=>{
+ if(!user||!confirm('Excluir todos os seus pacotes?'))return;
+ try{const {error}=await client.from('entregas').delete().eq('user_id',user.id);if(error)throw error;packages=[];orderedStops=[];render();clearMap();say('dataStatus','Lista limpa.');}
+ catch(e){say('dataStatus','Erro: '+e.message);}
+};
+$('gpsBtn').onclick=()=>{
+ if(!navigator.geolocation)return say('gpsStatus','GPS não disponível neste navegador.');
+ say('gpsStatus','Obtendo localização...');
+ navigator.geolocation.getCurrentPosition(async pos=>{
+  startPoint={lat:pos.coords.latitude,lon:pos.coords.longitude,label:'Minha localização'};
+  try{const address=await reverseGeocode(startPoint.lat,startPoint.lon);$('startAddress').value=address;gpsAddressValue=address;say('gpsStatus','Localização identificada: '+address);}
+  catch(e){$('startAddress').value=`${startPoint.lat}, ${startPoint.lon}`;gpsAddressValue=$('startAddress').value;say('gpsStatus','GPS obtido. Endereço textual indisponível; serão usadas as coordenadas.');}
+ },e=>say('gpsStatus','Não foi possível obter GPS: '+e.message),{enableHighAccuracy:true,timeout:25000,maximumAge:0});
+};
+async function fetchJSON(url){
+ const response=await fetch(url,{headers:{'Accept-Language':'pt-BR'}});
+ if(!response.ok)throw Error('Serviço de localização respondeu '+response.status);
+ return response.json();
+}
+async function reverseGeocode(lat,lon){
+ try{const d=await fetchJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);if(d.display_name)return d.display_name;}catch(e){}
+ const d=await fetchJSON(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=pt`);
+ const p=d.features?.[0]?.properties;if(p)return [p.name,p.street,p.housenumber,p.district||p.suburb,p.city||p.county,p.state].filter(Boolean).join(', ');
+ throw Error('Endereço não encontrado nos serviços de mapa.');
+}
+$('photoBtn').onclick=()=>$('cameraInput').click();
+$('galleryBtn').onclick=()=>$('galleryInput').click();
+$('textBtn').onclick=()=>$('manualBox').classList.toggle('hidden');
+function extractAddress(text){
+ const lines=String(text||'').split(/\r?\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
+ const street=/\b(rua|r\.|avenida|av\.?|travessa|tv\.?|alameda|estrada|rodovia|servidão|praça|largo)\b/i;
+ const cep=/\b\d{5}-?\d{3}\b/;
+ const index=lines.findIndex(x=>street.test(x));
+ return (index>=0?lines.slice(index,index+4):lines.filter(x=>cep.test(x))).join(', ');
+}
+async function readLabel(file,input){
+ if(!file)return;say('ocrStatus','Lendo etiqueta...');
+ try{
+  if(!window.Tesseract)throw Error('Serviço de leitura não carregou.');
+  const image=new Image(),url=URL.createObjectURL(file);
+  await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=reject;image.src=url;});
+  const scale=Math.min(2.5,2200/Math.max(image.width,image.height)),canvas=document.createElement('canvas');
+  canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);
+  canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);URL.revokeObjectURL(url);
+  const result=await Tesseract.recognize(canvas,'por+eng',{logger:m=>{if(m.status==='recognizing text')say('ocrStatus','Reconhecendo texto: '+Math.round(m.progress*100)+'%');}});
+  const raw=result.data.text||'',address=extractAddress(raw);
+  $('manualBox').classList.remove('hidden');$('manualAddress').value=address||raw;
+  say('ocrStatus',address?'Endereço sugerido. Confira antes de salvar.':'Não identifiquei o endereço completo. Mantive o texto lido para correção manual.');
+ }catch(e){$('manualBox').classList.remove('hidden');say('ocrStatus','Falha na leitura: '+e.message);}
+ finally{input.value='';}
+}
+$('cameraInput').onchange=e=>readLabel(e.target.files[0],e.target);
+$('galleryInput').onchange=e=>readLabel(e.target.files[0],e.target);
+$('cepInput').oninput=e=>{const digits=e.target.value.replace(/\D/g,'').slice(0,8);e.target.value=digits.length>5?digits.slice(0,5)+'-'+digits.slice(5):digits;};
+$('cepLookup').onclick=async()=>{
+ const cep=$('cepInput').value.replace(/\D/g,'');if(cep.length!==8)return say('cepStatus','Digite um CEP válido com 8 números.');
+ say('cepStatus','Consultando CEP...');
+ try{const d=await fetchJSON('https://viacep.com.br/ws/'+cep+'/json/');if(d.erro)throw Error('CEP não encontrado.');
+ $('manualAddress').value=[d.logradouro,d.bairro,d.localidade,d.uf,'CEP '+d.cep].filter(Boolean).join(', ');
+ say('cepStatus','Endereço localizado. Complete número e complemento.');
+ }catch(e){say('cepStatus',e.message);}
+};
+$('addManual').onclick=async()=>{
+ const address=$('manualAddress').value.trim();if(!address)return say('ocrStatus','Digite o endereço completo.');
+ try{await savePackage(address);$('manualAddress').value='';$('cepInput').value='';$('manualBox').classList.add('hidden');say('ocrStatus','Pacote salvo.');}
+ catch(e){say('ocrStatus','Não foi possível salvar: '+e.message);}
+};
+function norm(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();}
+function isCoordinate(value){return /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(value);}
+async function geocode(query){
+ const key='rotaexpress_geo_v3_'+norm(query);
+ try{const cached=JSON.parse(localStorage.getItem(key));if(cached&&Number.isFinite(cached.lat)&&Number.isFinite(cached.lon))return cached;}catch(e){}
+ if(isCoordinate(query)){const [lat,lon]=query.split(',').map(Number);return {lat,lon,label:query,approximate:false};}
+ const q=String(query||'').trim();if(!q)throw Error('Endereço vazio.');
+ let lastError=null;
+ // Primeiro tenta Photon; em seguida Nominatim como alternativa. Não força cidade/estado.
+ try{
+  const data=await fetchJSON('https://photon.komoot.io/api/?limit=5&lang=pt&q='+encodeURIComponent(q));
+  const features=data.features||[];
+  if(features.length){
+   const f=features[0],[lon,lat]=f.geometry.coordinates,p=f.properties||{};
+   const result={lat:Number(lat),lon:Number(lon),label:[p.name,p.housenumber,p.street,p.district||p.suburb,p.city||p.county,p.state,p.country].filter(Boolean).join(', '),approximate:!p.housenumber};
+   if(Number.isFinite(result.lat)&&Number.isFinite(result.lon)){try{localStorage.setItem(key,JSON.stringify(result));}catch(e){}return result;}
+  }
+ }catch(e){lastError=e;}
+ try{
+  await sleep(1100);
+  const data=await fetchJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=br&q='+encodeURIComponent(q));
+  if(data.length){const item=data[0],result={lat:Number(item.lat),lon:Number(item.lon),label:item.display_name||q,approximate:!item.address?.house_number};
+   if(Number.isFinite(result.lat)&&Number.isFinite(result.lon)){try{localStorage.setItem(key,JSON.stringify(result));}catch(e){}return result;}
+  }
+ }catch(e){lastError=e;}
+ throw Error('Endereço não localizado: '+q+(lastError?' ('+lastError.message+')':''));
+}
+function distance(a,b){
+ const radius=6371,to=x=>x*Math.PI/180,lat=to(b.lat-a.lat),lon=to(b.lon-a.lon);
+ const v=Math.sin(lat/2)**2+Math.cos(to(a.lat))*Math.cos(to(b.lat))*Math.sin(lon/2)**2;
+ return 2*radius*Math.asin(Math.sqrt(v));
+}
+function nearest(points,start){
+ const remaining=points.slice(),ordered=[];let current=start;
+ while(remaining.length){remaining.sort((a,b)=>distance(current,a)-distance(current,b));current=remaining.shift();ordered.push(current);}
+ return ordered;
+}
+async function roadOrder(points,start){
+ const all=[start,...points],coords=all.map(p=>p.lon+','+p.lat).join(';');
+ const data=await fetchJSON('https://router.project-osrm.org/table/v1/driving/'+coords+'?annotations=duration');
+ if(data.code!=='Ok'||!data.durations)throw Error('Tempos de direção indisponíveis.');
+ const remaining=points.map((_,i)=>i+1),ordered=[];let current=0;
+ while(remaining.length){
+  remaining.sort((a,b)=>(data.durations[current]?.[a]??Infinity)-(data.durations[current]?.[b]??Infinity));
+  const next=remaining.shift();if(!Number.isFinite(data.durations[current]?.[next]))throw Error('Não há ligação rodoviária calculável para uma parada.');
+  ordered.push(points[next-1]);current=next;
+ }
+ return ordered;
+}
+async function drawRoad(all){
+ const coords=all.map(p=>p.lon+','+p.lat).join(';');
+ const data=await fetchJSON('https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=full&geometries=geojson');
+ if(data.code!=='Ok'||!data.routes?.[0])throw Error('Traçado rodoviário indisponível.');
+ return data.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+}
+$('routeBtn').onclick=async()=>{
+ if(!packages.length||!user)return;
+ if(!map)return say('routeStatus','O mapa não carregou. Atualize a página e tente novamente.');
+ $('routeBtn').disabled=true;$('navigateBtn').disabled=true;say('routeStatus','Localizando ponto de partida e endereços...');
+ try{
+  const typed=$('startAddress').value.trim();let start=startPoint;
+  if(typed&&(!startPoint||typed!==gpsAddressValue))start=await geocode(typed);
+  if(!start)throw Error('Informe o ponto de partida ou use o GPS.');
+  const groups=new Map();
+  packages.forEach((p,index)=>{const key=norm(p.address);if(!groups.has(key))groups.set(key,{address:p.address,items:[]});groups.get(key).items.push(index+1);});
+  const points=[],failures=[];
+  for(const group of groups.values()){
+   say('routeStatus','Buscando endereço: '+group.address);
+   try{points.push({...await geocode(group.address),address:group.address,items:group.items});}
+   catch(e){failures.push(group.address);}
+  }
+  if(!points.length)throw Error('Nenhum endereço foi localizado. Confira rua, número, cidade e CEP.');
+  let optimized=true;
+  try{orderedStops=await roadOrder(points,start);}
+  catch(e){optimized=false;orderedStops=nearest(points,start);}
+  clearMap();const all=[start,...orderedStops];
+  all.forEach((point,index)=>markers.push(L.marker([point.lat,point.lon]).addTo(map).bindPopup(index?'Parada '+index+': '+escapeHTML(point.address):'Partida')));
+  try{const geometry=await drawRoad(all);routeLine=L.polyline(geometry,{color:'#ffb21c',weight:4}).addTo(map);map.fitBounds(routeLine.getBounds().pad(.15));}
+  catch(e){map.fitBounds(L.latLngBounds(all.map(p=>[p.lat,p.lon])).pad(.15));}
+  $('routeList').innerHTML='<ol>'+orderedStops.map((p,i)=>`<li style="margin:8px 0"><b>Parada ${i+1}:</b> ${escapeHTML(p.address)} — pacotes ${p.items.join(', ')} ${p.approximate?'<span class="tag warn">confira a precisão</span>':''}</li>`).join('')+'</ol>'+(failures.length?'<p class="help">Não localizados: '+failures.map(escapeHTML).join('; ')+'</p>':'');
+  $('navigateBtn').disabled=false;
+  say('routeStatus',orderedStops.length+' parada(s). '+(optimized?'Ordem estimada pelo tempo de direção.':'Ordem aproximada por proximidade; cálculo rodoviário indisponível.')+(failures.length?' '+failures.length+' endereço(s) precisam de correção.':''));
+ }catch(e){say('routeStatus','Não foi possível organizar: '+e.message);}
+ finally{$('routeBtn').disabled=!packages.length||!user;}
+};
+/* O Google Maps recebe endereços textuais. Para muitas paradas, abre uma etapa por vez,
+   respeitando o limite prático de waypoints no celular e sem perder a ordem da rota. */
+let navigationLegs=[],navigationIndex=0;
+function buildNavigationLegs(){
+ if(!orderedStops.length)return [];
+ const startText=$('startAddress').value.trim()||(startPoint?`${startPoint.lat},${startPoint.lon}`:'');
+ if(!startText)throw Error('Informe o ponto de partida.');
+ const maxWaypoints=3,legs=[];let origin=startText,index=0;
+ while(index<orderedStops.length){
+  const remaining=orderedStops.length-index;
+  const take=Math.min(maxWaypoints+1,remaining);
+  const chunk=orderedStops.slice(index,index+take);
+  legs.push({origin,destination:chunk[chunk.length-1].address,waypoints:chunk.slice(0,-1).map(p=>p.address)});
+  origin=chunk[chunk.length-1].address;index+=chunk.length;
+ }
+ return legs;
+}
+function openNavigationLeg(index){
+ const leg=navigationLegs[index];if(!leg)return;
+ const params=new URLSearchParams({api:'1',origin:leg.origin,destination:leg.destination,travelmode:'driving'});
+ if(leg.waypoints.length)params.set('waypoints',leg.waypoints.join('|'));
+ const url='https://www.google.com/maps/dir/?'+params.toString();
+ window.location.assign(url);
+}
+$('navigateBtn').onclick=()=>{
+ try{
+  navigationLegs=buildNavigationLegs();navigationIndex=0;
+  if(!navigationLegs.length)throw Error('Organize a rota antes de abrir o Google Maps.');
+  openNavigationLeg(0);
+  if(navigationLegs.length>1){
+   say('routeStatus','Etapa 1 de '+navigationLegs.length+' aberta no Google Maps. Ao concluir, toque em “Próxima etapa”.');
+   $('nextLegBtn').classList.remove('hidden');
+  }else{
+   say('routeStatus','Rota enviada ao Google Maps com os endereços completos.');
+   $('nextLegBtn').classList.add('hidden');
+  }
+ }catch(e){say('routeStatus',e.message);}
+};
+$('nextLegBtn').onclick=()=>{
+ if(navigationIndex+1>=navigationLegs.length){say('routeStatus','Todas as etapas foram abertas.');$('nextLegBtn').classList.add('hidden');return;}
+ navigationIndex++;openNavigationLeg(navigationIndex);
+ say('routeStatus','Etapa '+(navigationIndex+1)+' de '+navigationLegs.length+' aberta no Google Maps.');
+};
+init().catch(e=>say('authStatus','Erro ao iniciar: '+e.message));
+render();
+</script>
+</body>
+</html>
