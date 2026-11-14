@@ -92,12 +92,9 @@ footer{padding:8px 18px 28px;text-align:center;color:var(--muted);font-size:11px
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL='https://psbeqshiuohaynzeywtu.supabase.co';
 const SUPABASE_KEY='sb_publishable__g_JmFa-VfIxtpPUrc_0lQ_ZINzU50o';
-document.getElementById('loginBtn').addEventListener('click',()=>{document.getElementById('authStatus').textContent='Botao acionado. Verificando a conexao...'});
-document.getElementById('signupBtn').addEventListener('click',()=>{document.getElementById('authStatus').textContent='Botao acionado. Verificando a conexao...'});
 if(!window.supabase||!window.supabase.createClient){document.getElementById('authStatus').textContent='Falha ao carregar a biblioteca de login. Verifique a internet e atualize a pagina.';throw new Error('Supabase JS nao carregou');}
 const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=id=>document.getElementById(id);
@@ -211,7 +208,7 @@ $('routeBtn').onclick=async()=>{
   });
   const points=[],unresolved=[];let n=0;
   for(const g of groups.values()){
-   n++;setStatus('routeStatus','Localizando parada '+n+' de '+groups.size()+': '+g.address);
+   n++;setStatus('routeStatus','Localizando parada '+n+' de '+groups.size+': '+g.address);
    try{
     const point=await geocode(g.address);
     points.push({...point,address:g.address,items:g.items});
@@ -232,7 +229,7 @@ $('routeBtn').onclick=async()=>{
  finally{$('routeBtn').disabled=!packages.length||!user}
 };
 $('saveRouteBtn').onclick=async()=>{if(!user||!orderedStops.length)return;try{const {data:route,error:rerr}=await client.from('rotas').insert({user_id:user.id,nome:'Rota '+new Date().toLocaleString('pt-BR')}).select().single();if(rerr)throw rerr;const rows=[];for(let i=0;i<orderedStops.length;i++){for(const packageNumber of orderedStops[i].items){const p=packages[packageNumber-1];if(p?.id)rows.push({rota_id:route.id,entrega_id:p.id,ordem:i+1})}}if(rows.length){const {error}=await client.from('paradas_rota').insert(rows);if(error)throw error}setStatus('routeStatus','Rota salva na nuvem com '+orderedStops.length+' parada(s).')}catch(e){setStatus('routeStatus','N\u00e3o foi poss\u00edvel salvar a rota: '+e.message)}};
-$('navigateBtn').onclick=()=>{if(!orderedStops.length)return;const typedStart=$('startAddress').value.trim();const start=typedStart||'My Location';const last=orderedStops[orderedStops.length-1];const way=orderedStops.slice(0,-1).map(p=>p.address).join('|');const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(start)+'&destination='+encodeURIComponent(last.address)+'&travelmode=driving'+(way?'&waypoints='+encodeURIComponent(way):'');window.open(url,'_blank','noopener,noreferrer')};
+$('navigateBtn').onclick=()=>{if(!orderedStops.length)return;const typedStart=$('startAddress').value.trim();const start=typedStart||(startPoint?startPoint.lat+','+startPoint.lon:'');if(!start){setStatus('routeStatus','Informe o endereÃ§o de partida ou use o GPS antes de abrir o Maps.');return}const last=orderedStops[orderedStops.length-1];const way=orderedStops.slice(0,-1).map(p=>p.address).join('|');const url='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(start)+'&destination='+encodeURIComponent(last.address)+'&travelmode=driving'+(way?'&waypoints='+encodeURIComponent(way):'');window.location.href=url};
 render();refreshSession().catch(e=>setStatus('authStatus','Erro ao conectar ao Supabase: '+e.message));
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(reg=>reg.unregister())).catch(()=>{}));
 </script>
